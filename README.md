@@ -24,6 +24,9 @@ install.packages("patchwork")
 install.packages("poLCA")
 install.packages("survey")
 install.packages("car")
+install.packages("pROC")
+install.packages("caret")
+install.packages("Metrics")
 ```
 
 ### Execution
