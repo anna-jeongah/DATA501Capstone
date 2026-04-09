@@ -1,18 +1,12 @@
 ---
-title: "Michelle - Data Cleaning and LCA (EDA)"
-output:
-  html_document:
-    df_print: paged
+title: "Imputation/LCA FINAL"
+author: "Michelle Le 30145965"
 date: "`r Sys.Date()`"
+output: html_document
 ---
 
-
-
-
-
-
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 library(dplyr) # data manipulation
 library(naniar) # visualizing non-response
 library(VIM) # visualizing non-response
@@ -21,8 +15,6 @@ library(naniar) # summarize missingness patterns
 library(ggplot2) # general data visualization
 library(patchwork) # formatting data visualization
 library(poLCA) # lca modelling
-library(survey)
-library(car)
 ```
 
 # Loading the Data
@@ -30,7 +22,6 @@ library(car)
 ```{r load data}
 # data <- read.csv(file.choose(), colClasses = "character") # run within R chunk
 data <- read.csv("/Users/michellele/Downloads/data 501/5012-NGS-END_2020-CSV/ngs2020_pumf.csv", colClasses = "character") # run to knit as pdf
-# head(data)
 
 # check the number of rows
 nrow(data)
@@ -39,25 +30,25 @@ nrow(data)
 data <- data %>%
   filter(CERTLEVP == 2) # CERTLEVP refers to university certificate or diploma below a bachelor's degree AND bachelor's degree
 
+# check the number of rows after filtering
 nrow(data)
 ```
-
 
 # Preliminary Data Cleaning
 
 ```{r prelim cleaning}
-# check how many columns are in the dataset
+# check how many columns are in the dataset before prelim cleaning
 ncol_before <- ncol(data)
 ncol_before
 
 # we remove the following columns because they define employment outcomes and are not graduate characteristics
-# although we do keep LFSTATP for later***
-# LFSTATP is employment status (employed, unemployed, etc.)
-oth_cols_to_remove <- c("CERTLEVP", # remove since we're only looking at bachelors
+# although we do keep LFSTATP and LFCINDP for later***
+# LFSTATP is employment status (employed, unemployed, etc.) -> this is what we are aiming to predict
+# LFCINDP is job sector; required for job-sector specific analysis
+oth_cols_to_remove <- c("CERTLEVP", # remove since we're only looking at bachelors; redundant column
                         "LMA_010",
                         "LMA2_07",
                         "LMA3_P01",
-                        # "LFCINDP", # keep since we will later need for job-sector specific analysis
                         "LFCOCCP",
                         "LFWFTPTP",
                         "LMA6_05",
@@ -83,16 +74,16 @@ oth_cols_to_remove <- c("CERTLEVP", # remove since we're only looking at bachelo
                         "VERDATE",
                         "PERSINCP")
 
+# remove the columns
 data <- data[ , !(names(data) %in% oth_cols_to_remove)]
 
-# check how many columns are left
+# check how many columns are left after prelim cleaning
 ncol_after <- ncol(data)
 ncol_after
 
-# some columns use "99" to denote not-stated whereas other columns use "9"; we need to distinguish between these columns
+# some columns use "99" to denote not-stated whereas other columns use "9"; we need to distinguish between these columns; we referenced the documentation provided by statscan (`NGS2020-PUMF_E.pdf`)
 
-# colnames(data)
-
+# these columns use "99"
 cols_99 <- c("PGMCIPAP", 
              "PGM_410",
              "PGM_415",
@@ -100,10 +91,12 @@ cols_99 <- c("PGMCIPAP",
              "BEF_160",
              "LFCINDP"
              )
-length(cols_99)
+# length(cols_99)
+
+# every other column uses "9"
 cols_9 <- setdiff(names(data), c(cols_99, "PUMFID", "LFSTATP")) # every other column uses "9", do not include "PUMFID", "LFSTATP"
 cols_9
-length(cols_9)
+# length(cols_9)
 
 # replace "not-stated" (denoted by either "99" or "9") with NA
 data <- data %>%
@@ -111,14 +104,13 @@ data <- data %>%
     across(all_of(cols_99), ~na_if(., "99")),
     across(all_of(cols_9),  ~na_if(., "9"))
   )
-dim(data)
 ```
 
 Moving forward, we will only be working with data applicable to all respondents. Whether a question was applicable to all respondents is defined by the universe. The universe for each question can be found in the `NGS2020-PUMF_E.pdf` document.  The following variables were applicable to all respondents:
 
 ```{r get relevant columns}
-allresp_universe <- c(# "CERTLEVP", # program - level of study
-                      "REG_INST", # region of inst
+# define which columns are applicable to all respondents
+allresp_universe <- c("REG_INST", # region of inst
                       "REG_RESP", # region of res 2023
                       "PGMCIPAP", # 2020 program
                       "PGM_P034", # 2020 full-time vs part-time
@@ -173,7 +165,6 @@ data_reduced <- data[ , (names(data) %in% allresp_universe)]
 data_reduced$LFSTATP <- data$LFSTATP # add back LFSTATP
 data_reduced$PUMFID <- data$PUMFID # add back PUMFID
 data_reduced$LFCINDP <- data$LFCINDP # add back LFCINDP
-dim(data_reduced)
 ```
 
 # Check Missing Data
@@ -192,6 +183,7 @@ sum(is.na(data_reduced$LFCINDP))
 survey_cols <- intersect(c(cols_99, cols_9), names(data_reduced))
 col_missing <- colSums(is.na(data_reduced[, survey_cols]))
 sort(col_missing, decreasing = TRUE)
+# get the top 5 missing columns
 top_missing_cols <- names(sort(col_missing, decreasing = TRUE)[1:5])
 
 # check which column has the most non-responses
@@ -199,7 +191,7 @@ which.max(colSums(is.na(data_reduced[, survey_cols]))) # output is the column na
 
 # check the non-response rate per column
 missing_prop <- colMeans(is.na(data_reduced[, survey_cols]))
-round(missing_prop*100, 2) # multiply by 100 to get a percentage; easier to read
+round(missing_prop*100, 2) # multiply by 100 to get a percentage -> this is easier to read
 
 # check the number of non-responses per respondent
 row_missing <- rowSums(is.na(data_reduced[, survey_cols]))
@@ -210,17 +202,20 @@ row_missing_prop <- row_missing / length(survey_cols)
 # row_missing_prop
 
 respondent_nonresp <- data.frame(row_missing, row_missing_prop)
+# get summary statistics for the number of non-responses per respondent
 summary(row_missing)
+# get the summary statistics for the proportion of non-response per respondent
 summary(row_missing_prop)
 
-# visual summary
-gg_miss_upset(data_reduced[, survey_cols])  # which combinations of NAs occur
+# plot a visual summary
+# observe which combinations of NAs frequently occur
+gg_miss_upset(data_reduced[, survey_cols])
 ```
 
 The above visualization summarizes the most common combinations of survey questions left unanswered. Notably, parent's education level (`PAR2GRD`, `PAR2INT`, `PAR1GRD`, `PAR1INT`) and citizenship status (`CTZSHIPP`) were most commonly unanswered.
 
 ```{r examining distribution of missing data}
-
+# check the distribution of the missing data before imputation
 p1 <- ggplot(data_reduced, aes(x = PAR2GRD)) +
   geom_bar() +
   labs(title = "Distribution of PAR2GRD (Before Imputation)",
@@ -260,7 +255,7 @@ p5
 
 # Imputation
 
-We will use Multiple Imputation with Chained Equations (MICE) to handle the missing data.
+We will use Multiple Imputation with Chained Equations (MICE) to handle the missing data. The following code includes the code for MICE, however, it has been commented out to improve computational efficiency upon running this script.
 
 ```{r imputation}
 # exclude PUMFID and LFSTATP since they are not missing
@@ -289,8 +284,8 @@ data_impute <- data_impute %>%
 # # for now, we'll take the first complete dataset out of the 5 generated and use this for our lca
 # data_completed <- complete(imp, 1)
 
-# # write each of the five datasets to a csv so we don't have to run mice again
-# # for later analysis, we will need to pool the 5 datasets(?)
+# # write each of the five datasets to a csv so we don't have to run mice again (computationally exhaustive)
+# # for later analysis, we will need to pool the 5 datasets
 # for (i in 1:5) {
 #   # get the ith completed dataset
 #   completed_data <- complete(imp, i)
@@ -302,14 +297,14 @@ data_impute <- data_impute %>%
 #   write.csv(completed_data, file_name, row.names = FALSE)
 # }
 
+# completed datasets are also provided
 data_completed <- read.csv("/Users/michellele/Downloads/data 501/data_completed_imp1.csv", colClasses = "character")
 
 # add back the ID and employment status columns
 data_completed$PUMFID <- data_reduced$PUMFID
 data_completed$LFSTATP <- data_reduced$LFSTATP
 
-
-# check the distributions
+# check the distributions after imputation
 p6 <- ggplot(data_completed, aes(x = PAR2GRD)) +
   geom_bar() +
   labs(title = "Distribution of PAR2GRD (After Imputation)",
@@ -353,9 +348,9 @@ From these plots, we can observe that the distribution before and after MICE is 
 
 With LCA, it is not the case that more indicators is better. Too many indicators will increase model complexity, reduce interpretability and cause convergence problems. Moreover, good LCA models should produce clear separation between classes. Thus, indicators that are composite of other indicators should be excluded.
 
-Therefore, to guide our feature selection, we need to consider a conceptual framework, exclude variables that break LCA assumptions such as conditional independence, and exclude low-information variables (i.e., small variance).
+Therefore, to guide our feature selection, we need to consider which variables fit within our conceptual framework, exclude variables that break LCA assumptions such as conditional independence, and exclude low-information variables (i.e., small variance).
 
-While factors such as the region of the respondent's institution and resident may provide some useful insight, we are not particularly interested in these indicators. Similarly, we are not interested in the respondent's main factor in their choice of institution and/or program or whether they would choose the same program again if they could. That is, regional and institutional variables are not part of our conceptual framework.
+While factors such as the region of the respondent's institution and resident may provide some useful insights, we are not particularly interested in these indicators. Similarly, we are not interested in the respondent's main factor in their choice of institution and/or program or whether they would choose the same program again if they could. That is, regional and institutional variables are not part of our conceptual framework.
 
 To some extent, we are interested in the respondent's entrepreneurship skills. Particularly, whether or not they were trained in or had exposure to them, not how. For this reason, we will collapse the entrepreneurship skills section into one variable.
 
@@ -455,8 +450,8 @@ length(lca_vars)
 
 # LCA
 
-```{r lca analysis,  eval=FALSE}
-# subset the data
+```{r lca analysis}
+# subset the data; only include variables we want to include in the LCA as defined previously
 lca_data <- data_completed %>%
   dplyr::select("PUMFID", "LFSTATP", dplyr::all_of(lca_vars))
 
@@ -479,6 +474,7 @@ lca_8 <- poLCA(f, lca_data, nclass = 8, maxiter = 5000, nrep = 10)
 
 N <- nrow(lca_data)
 
+# compute sabic for a diagnostic measure
 sabic_values <- c(
   -2 * lca_2$llik + log((N + 2)/24) * lca_2$npar,
   -2 * lca_3$llik + log((N + 2)/24) * lca_3$npar,
@@ -569,11 +565,8 @@ lca_5
 
 Based on the above results, the model with 5 classes is most optimal. In general, the differences in AIC, BIC, SABIC, and entropy across classes are negligible. 5 classes balances low AIC, BIC, and SABIC with high entropy, and moderate class size proportions.
 
-```{r}
-# lca_data$class <- lca_5$predclass
-# lca_5
-```
 ```{r load other imputed datasets}
+# load other imputated datasets and add back in the missing columns
 data_completed_1 <- read.csv("/Users/michellele/Downloads/data 501/data_completed_imp1.csv", colClasses = "character")
 data_completed_1$PUMFID <- data_reduced$PUMFID
 data_completed_1$LFSTATP <- data_reduced$LFSTATP
@@ -594,262 +587,23 @@ data_completed_5 <- read.csv("/Users/michellele/Downloads/data 501/data_complete
 data_completed_5$PUMFID <- data_reduced$PUMFID
 data_completed_5$LFSTATP <- data_reduced$LFSTATP
 
-# str(data_completed_1)
-# str(data_completed_2)
-# str(data_completed_3)
-# str(data_completed_4)
-# str(data_completed_5)
-
 data_completed_1[] <- lapply(data_completed_1, function(x) {
   if (is.character(x)) as.factor(x) else x
 })
-# str(data_completed_1)
 
 data_completed_2[] <- lapply(data_completed_2, function(x) {
   if (is.character(x)) as.factor(x) else x
 })
-# str(data_completed_2)
 
 data_completed_3[] <- lapply(data_completed_3, function(x) {
   if (is.character(x)) as.factor(x) else x
 })
-# str(data_completed_3)
 
 data_completed_4[] <- lapply(data_completed_4, function(x) {
   if (is.character(x)) as.factor(x) else x
 })
-# str(data_completed_4)
 
 data_completed_5[] <- lapply(data_completed_5, function(x) {
   if (is.character(x)) as.factor(x) else x
 })
-# str(data_completed_5)
-
-# filter out rows where LFSTATP != 1, 2
-data_filtered_1 <- data_completed_1[data_completed_1$LFSTATP %in% c(1, 2), ]
-data_filtered_2 <- data_completed_2[data_completed_2$LFSTATP %in% c(1, 2), ]
-data_filtered_3 <- data_completed_3[data_completed_3$LFSTATP %in% c(1, 2), ]
-data_filtered_4 <- data_completed_4[data_completed_4$LFSTATP %in% c(1, 2), ]
-data_filtered_5 <- data_completed_5[data_completed_5$LFSTATP %in% c(1, 2), ]
-
-dim(data_filtered_1)
-dim(data_filtered_2)
-dim(data_filtered_3)
-dim(data_filtered_4)
-dim(data_filtered_5)
-
-data_filtered_1$LFSTATP = ifelse(data_filtered_1$LFSTATP == 2,0,1) # unemployed = 0; employed = 1
-data_filtered_2$LFSTATP = ifelse(data_filtered_2$LFSTATP == 2,0,1)
-data_filtered_3$LFSTATP = ifelse(data_filtered_3$LFSTATP == 2,0,1)
-data_filtered_4$LFSTATP = ifelse(data_filtered_4$LFSTATP == 2,0,1)
-data_filtered_5$LFSTATP = ifelse(data_filtered_5$LFSTATP == 2,0,1)
-```
-
-# Weights set-up
-This section adds back the weights too their corresponding imputed dataset based on PUMFID
-```{r}
-
-data_full <- read.csv("/Users/michellele/Downloads/data 501/5012-NGS-END_2020-CSV/ngs2020_pumf.csv", colClasses = "character")
-
-data_filtered_1 <- data_filtered_1 %>%
-  left_join(
-    dplyr::select(data_full, PUMFID, WTPF),  # select columns from `data`
-    by = c("PUMFID" = "PUMFID")          # join lca_data$PUMFID to data$PUMFID
-  )
-
-data_filtered_2 <- data_filtered_2 %>%
-  left_join(
-    dplyr::select(data_full, PUMFID, WTPF),  # select columns from `data`
-    by = c("PUMFID" = "PUMFID")          # join lca_data$PUMFID to data$PUMFID
-  )
-
-data_filtered_3 <- data_filtered_3 %>%
-  left_join(
-    dplyr::select(data_full, PUMFID, WTPF),  # select columns from `data`
-    by = c("PUMFID" = "PUMFID")          # join lca_data$PUMFID to data$PUMFID
-  )
-
-data_filtered_4 <- data_filtered_4 %>%
-  left_join(
-    dplyr::select(data_full, PUMFID, WTPF),  # select columns from `data`
-    by = c("PUMFID" = "PUMFID")          # join lca_data$PUMFID to data$PUMFID
-  )
-
-data_filtered_5 <- data_filtered_5 %>%
-  left_join(
-    dplyr::select(data_full, PUMFID, WTPF),  # select columns from `data`
-    by = c("PUMFID" = "PUMFID")          # join lca_data$PUMFID to data$PUMFID
-  )
-
-# Converting WTPF as numeric
-data_filtered_1$WTPF = as.numeric(data_filtered_1$WTPF)
-data_filtered_2$WTPF = as.numeric(data_filtered_2$WTPF) 
-data_filtered_3$WTPF = as.numeric(data_filtered_3$WTPF)
-data_filtered_4$WTPF = as.numeric(data_filtered_4$WTPF)
-data_filtered_5$WTPF = as.numeric(data_filtered_5$WTPF)
-```
-
-Creating training (70%) and test (30%) sets
-```{r}
-# Creating training and test sets
-
-set.seed(1)
-train <- sample(nrow(data_filtered_1), 0.7*nrow(data_filtered_1), replace = FALSE)
-
-train_1 <- data_filtered_1[train,]
-train_2 <- data_filtered_2[train,]
-train_3 <- data_filtered_3[train,]
-train_4 <- data_filtered_4[train,]
-train_5 <- data_filtered_5[train,]
-
-
-test_1 <- data_filtered_1[-train,]
-test_2 <- data_filtered_2[-train,]
-test_3 <- data_filtered_3[-train,]
-test_4 <- data_filtered_4[-train,]
-test_5 <- data_filtered_5[-train,]
-```
-
-```{r prepare for stepwise AIC/BIC logistic regression modeling}
-predictors_1 <- setdiff(names(data_filtered_1), c("LFCINDP", "PUMFID", "LFSTATP", "WTPF"))
-predictors_2 <- setdiff(names(data_filtered_2), c("LFCINDP", "PUMFID", "LFSTATP", "WTPF"))
-predictors_3 <- setdiff(names(data_filtered_3), c("LFCINDP", "PUMFID", "LFSTATP", "WTPF"))
-predictors_4 <- setdiff(names(data_filtered_4), c("LFCINDP", "PUMFID", "LFSTATP", "WTPF"))
-predictors_5 <- setdiff(names(data_filtered_5), c("LFCINDP", "PUMFID", "LFSTATP", "WTPF"))
-
-formula_1 <- as.formula(
-  paste("LFSTATP ~", paste(predictors_1, collapse = " + "))
-)
-formula_2 <- as.formula(
-  paste("LFSTATP ~", paste(predictors_2, collapse = " + "))
-)
-formula_3 <- as.formula(
-  paste("LFSTATP ~", paste(predictors_3, collapse = " + "))
-)
-formula_4 <- as.formula(
-  paste("LFSTATP ~", paste(predictors_4, collapse = " + "))
-)
-formula_5 <- as.formula(
-  paste("LFSTATP ~", paste(predictors_5, collapse = " + "))
-)
-
-full_model_1 <- glm(formula_1,
-             data = data_filtered_1, subset = train,
-             family = binomial)
-full_model_2 <- glm(formula_2,
-             data = data_filtered_2, subset = train,
-             family = binomial)
-full_model_3 <- glm(formula_3,
-             data = data_filtered_3, subset = train,
-             family = binomial)
-full_model_4 <- glm(formula_4,
-             data = data_filtered_4, subset = train,
-             family = binomial)
-full_model_5 <- glm(formula_5,
-             data = data_filtered_5, subset = train,
-             family = binomial)
-```
-
-```{r stepwise aic logistic regression}
-aic_step_model_1 <- step(full_model_1, direction = "both", trace = 0)
-# summary(aic_step_model_1)
-
-aic_step_model_2 <- step(full_model_2, direction = "both", trace = 0)
-# summary(aic_step_model_2)
-
-aic_step_model_3 <- step(full_model_3, direction = "both", trace = 0)
-# summary(aic_step_model_3)
-
-aic_step_model_4 <- step(full_model_4, direction = "both", trace = 0)
-# summary(aic_step_model_4)
-
-aic_step_model_5 <- step(full_model_5, direction = "both", trace = 0)
-# summary(aic_step_model_5)
-```
-
-# Check Assumptions for AIC Model
-```{r}
-# Assumption 1: No severe multicollinearity
-vif(aic_step_model_1)
-vif(aic_step_model_2)
-vif(aic_step_model_3)
-vif(aic_step_model_4)
-vif(aic_step_model_5)
-
-# Assumption 2: Checking for influential points using Cook's Distance
-cooks_1 <- which(cooks.distance(aic_step_model_1) > 4/nrow(data_filtered_1[train,]))
-# cooks_1
-cooks_2 <- which(cooks.distance(aic_step_model_2) > 4/nrow(data_filtered_2[train,]))
-# cooks_2
-cooks_3 <- which(cooks.distance(aic_step_model_3) > 4/nrow(data_filtered_3[train,]))
-# cooks_3
-cooks_4 <- which(cooks.distance(aic_step_model_4) > 4/nrow(data_filtered_4[train,]))
-# cooks_4
-cooks_5 <- which(cooks.distance(aic_step_model_5) > 4/nrow(data_filtered_5[train,]))
-# cooks_5
-```
-
-```{r stepwise bic logistic regression}
-bic_step_model_1 <- step(full_model_1, k = log(nrow(data_filtered_1)), trace = 0)
-# summary(bic_step_model_1)
-
-bic_step_model_2 <- step(full_model_2, k = log(nrow(data_filtered_2)), trace = 0)
-# summary(bic_step_model_2)
-
-bic_step_model_3 <- step(full_model_3, k = log(nrow(data_filtered_3)), trace = 0)
-# summary(bic_step_model_3)
-
-bic_step_model_4 <- step(full_model_4, k = log(nrow(data_filtered_4)), trace = 0)
-# summary(bic_step_model_4)
-
-bic_step_model_5 <- step(full_model_5, k = log(nrow(data_filtered_5)), trace = 0)
-# summary(bic_step_model_5)
-```
-
-# Check Assumptions for BIC Model
-```{r}
-# Assumption 1: No severe multicollinearity
-vif(bic_step_model_1)
-vif(bic_step_model_2)
-vif(bic_step_model_3)
-vif(bic_step_model_4)
-vif(bic_step_model_5)
-
-# Assumption 2: Checking for influential points using Cook's Distance
-cooks_1 <- which(cooks.distance(bic_step_model_1) > 4/nrow(data_filtered_1[train,]))
-# cooks_1
-cooks_2 <- which(cooks.distance(bic_step_model_2) > 4/nrow(data_filtered_2[train,]))
-# cooks_2
-cooks_3 <- which(cooks.distance(bic_step_model_3) > 4/nrow(data_filtered_3[train,]))
-# cooks_3
-cooks_4 <- which(cooks.distance(bic_step_model_4) > 4/nrow(data_filtered_4[train,]))
-# cooks_4
-cooks_5 <- which(cooks.distance(bic_step_model_5) > 4/nrow(data_filtered_5[train,]))
-# cooks_5
-```
-
-```{r check common aic predictors}
-aic_vars_1 <- setdiff(names(coef(aic_step_model_1)), "(Intercept)")
-aic_vars_2 <- setdiff(names(coef(aic_step_model_2)), "(Intercept)")
-aic_vars_3 <- setdiff(names(coef(aic_step_model_3)), "(Intercept)")
-aic_vars_4 <- setdiff(names(coef(aic_step_model_4)), "(Intercept)")
-aic_vars_5 <- setdiff(names(coef(aic_step_model_5)), "(Intercept)")
-
-all_aic_vars <- c(aic_vars_1, aic_vars_2, aic_vars_3, aic_vars_4, aic_vars_5)
-aic_tab <- table(all_aic_vars)
-common_aic_vars <- names(aic_tab[aic_tab == 5])
-common_aic_vars
-```
-
-```{r check common bic predictors}
-bic_vars_1 <- setdiff(names(coef(bic_step_model_1)), "(Intercept)")
-bic_vars_2 <- setdiff(names(coef(bic_step_model_2)), "(Intercept)")
-bic_vars_3 <- setdiff(names(coef(bic_step_model_3)), "(Intercept)")
-bic_vars_4 <- setdiff(names(coef(bic_step_model_4)), "(Intercept)")
-bic_vars_5 <- setdiff(names(coef(bic_step_model_5)), "(Intercept)")
-
-all_bic_vars <- c(bic_vars_1, bic_vars_2, bic_vars_3, bic_vars_4, bic_vars_5)
-bic_tab <- table(all_bic_vars)
-common_bic_vars <- names(bic_tab[bic_tab == 5])
-common_bic_vars
 ```
