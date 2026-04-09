@@ -1,0 +1,410 @@
+---
+title: "AIC/BIC Logistic Regression Business"
+author: "Michelle Le 30145965"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
+library(dplyr) # data manipulation
+library(naniar) # visualizing non-response
+library(VIM) # visualizing non-response
+library(mice) # multiple imputation
+library(naniar) # summarize missingness patterns
+library(ggplot2) # general data visualization
+library(patchwork) # formatting data visualization
+library(poLCA) # lca modelling
+library(survey)
+library(car)
+```
+
+# Load Data
+```{r load data}
+data <- read.csv("/Users/michellele/Downloads/data 501/5012-NGS-END_2020-CSV/ngs2020_pumf.csv", colClasses = "character")
+
+# filter the data to bachelors only
+data <- data %>%
+  filter(CERTLEVP == 2) # CERTLEVP refers to university certificate or diploma below a bachelor's degree AND bachelor's degree
+```
+
+# Load the Imputed Datasets
+
+```{r load the imputed datasets}
+# load the imputed datasets
+data_completed_1 <- read.csv("/Users/michellele/Downloads/data 501/data_completed_imp1.csv", colClasses = "character")
+data_completed_1$PUMFID <- data$PUMFID
+data_completed_1$LFSTATP <- data$LFSTATP
+
+data_completed_2 <- read.csv("/Users/michellele/Downloads/data 501/data_completed_imp2.csv", colClasses = "character")
+data_completed_2$PUMFID <- data$PUMFID
+data_completed_2$LFSTATP <- data$LFSTATP
+
+data_completed_3 <- read.csv("/Users/michellele/Downloads/data 501/data_completed_imp3.csv", colClasses = "character")
+data_completed_3$PUMFID <- data$PUMFID
+data_completed_3$LFSTATP <- data$LFSTATP
+
+data_completed_4 <- read.csv("/Users/michellele/Downloads/data 501/data_completed_imp4.csv", colClasses = "character")
+data_completed_4$PUMFID <- data$PUMFID
+data_completed_4$LFSTATP <- data$LFSTATP
+
+data_completed_5 <- read.csv("/Users/michellele/Downloads/data 501/data_completed_imp5.csv", colClasses = "character")
+data_completed_5$PUMFID <- data$PUMFID
+data_completed_5$LFSTATP <- data$LFSTATP
+
+# convert to factor
+data_completed_1[] <- lapply(data_completed_1, function(x) {
+  if (is.character(x)) as.factor(x) else x
+})
+# str(data_completed_1)
+
+data_completed_2[] <- lapply(data_completed_2, function(x) {
+  if (is.character(x)) as.factor(x) else x
+})
+# str(data_completed_2)
+
+data_completed_3[] <- lapply(data_completed_3, function(x) {
+  if (is.character(x)) as.factor(x) else x
+})
+# str(data_completed_3)
+
+data_completed_4[] <- lapply(data_completed_4, function(x) {
+  if (is.character(x)) as.factor(x) else x
+})
+# str(data_completed_4)
+
+data_completed_5[] <- lapply(data_completed_5, function(x) {
+  if (is.character(x)) as.factor(x) else x
+})
+# str(data_completed_5)
+
+# filter out rows where LFSTATP != 1, 2 (only want employed and unemployed status)
+data_filtered_1 <- data_completed_1[data_completed_1$LFSTATP %in% c(1, 2), ]
+data_filtered_2 <- data_completed_2[data_completed_2$LFSTATP %in% c(1, 2), ]
+data_filtered_3 <- data_completed_3[data_completed_3$LFSTATP %in% c(1, 2), ]
+data_filtered_4 <- data_completed_4[data_completed_4$LFSTATP %in% c(1, 2), ]
+data_filtered_5 <- data_completed_5[data_completed_5$LFSTATP %in% c(1, 2), ]
+
+# Filtering for program 5: Business, Management, and Public Administration
+data_filtered_1 = filter(data_filtered_1, PGMCIPAP == 5)
+data_filtered_2 = filter(data_filtered_2, PGMCIPAP == 5)
+data_filtered_3 = filter(data_filtered_3, PGMCIPAP == 5)
+data_filtered_4 = filter(data_filtered_4, PGMCIPAP == 5)
+data_filtered_5 = filter(data_filtered_5, PGMCIPAP == 5)
+
+dim(data_filtered_1)
+dim(data_filtered_2)
+dim(data_filtered_3)
+dim(data_filtered_4)
+dim(data_filtered_5)
+
+data_filtered_1$LFSTATP = ifelse(data_filtered_1$LFSTATP == 2,0,1) # unemployed = 0; employed = 1
+data_filtered_2$LFSTATP = ifelse(data_filtered_2$LFSTATP == 2,0,1)
+data_filtered_3$LFSTATP = ifelse(data_filtered_3$LFSTATP == 2,0,1)
+data_filtered_4$LFSTATP = ifelse(data_filtered_4$LFSTATP == 2,0,1)
+data_filtered_5$LFSTATP = ifelse(data_filtered_5$LFSTATP == 2,0,1)
+```
+
+# Weights set-up
+
+This section adds back the weights to their corresponding imputed dataset based on PUMFID.
+
+```{r add back weights}
+data_filtered_1 <- data_filtered_1 %>%
+  left_join(
+    dplyr::select(data, PUMFID, WTPF),
+    by = c("PUMFID" = "PUMFID")
+  )
+
+data_filtered_2 <- data_filtered_2 %>%
+  left_join(
+    dplyr::select(data, PUMFID, WTPF),
+    by = c("PUMFID" = "PUMFID")
+  )
+
+data_filtered_3 <- data_filtered_3 %>%
+  left_join(
+    dplyr::select(data, PUMFID, WTPF),
+    by = c("PUMFID" = "PUMFID")
+  )
+
+data_filtered_4 <- data_filtered_4 %>%
+  left_join(
+    dplyr::select(data, PUMFID, WTPF),
+    by = c("PUMFID" = "PUMFID")
+  )
+
+data_filtered_5 <- data_filtered_5 %>%
+  left_join(
+    dplyr::select(data, PUMFID, WTPF),
+    by = c("PUMFID" = "PUMFID")
+  )
+
+# Converting WTPF as numeric
+data_filtered_1$WTPF = as.numeric(data_filtered_1$WTPF)
+data_filtered_2$WTPF = as.numeric(data_filtered_2$WTPF) 
+data_filtered_3$WTPF = as.numeric(data_filtered_3$WTPF)
+data_filtered_4$WTPF = as.numeric(data_filtered_4$WTPF)
+data_filtered_5$WTPF = as.numeric(data_filtered_5$WTPF)
+```
+
+# Training and Testing Split
+
+Create training (70%) and test (30%) sets.
+
+```{r training and test split}
+# Creating training and test sets
+set.seed(1)
+train <- sample(nrow(data_filtered_1), 0.7*nrow(data_filtered_1), replace = FALSE)
+
+train_1 <- data_filtered_1[train,]
+train_2 <- data_filtered_2[train,]
+train_3 <- data_filtered_3[train,]
+train_4 <- data_filtered_4[train,]
+train_5 <- data_filtered_5[train,]
+
+
+test_1 <- data_filtered_1[-train,]
+test_2 <- data_filtered_2[-train,]
+test_3 <- data_filtered_3[-train,]
+test_4 <- data_filtered_4[-train,]
+test_5 <- data_filtered_5[-train,]
+```
+
+# Prepare Data for Stepwise AIC/BIC Logistic Regression
+
+```{r prepare for stepwise AIC/BIC logistic regression modeling}
+predictors_1 <- setdiff(names(data_filtered_1), c("LFCINDP", "PUMFID", "LFSTATP", "WTPF", "PGMCIPAP"))
+predictors_2 <- setdiff(names(data_filtered_2), c("LFCINDP", "PUMFID", "LFSTATP", "WTPF", "PGMCIPAP"))
+predictors_3 <- setdiff(names(data_filtered_3), c("LFCINDP", "PUMFID", "LFSTATP", "WTPF", "PGMCIPAP"))
+predictors_4 <- setdiff(names(data_filtered_4), c("LFCINDP", "PUMFID", "LFSTATP", "WTPF", "PGMCIPAP"))
+predictors_5 <- setdiff(names(data_filtered_5), c("LFCINDP", "PUMFID", "LFSTATP", "WTPF", "PGMCIPAP"))
+
+formula_1 <- as.formula(
+  paste("LFSTATP ~", paste(predictors_1, collapse = " + "))
+)
+formula_2 <- as.formula(
+  paste("LFSTATP ~", paste(predictors_2, collapse = " + "))
+)
+formula_3 <- as.formula(
+  paste("LFSTATP ~", paste(predictors_3, collapse = " + "))
+)
+formula_4 <- as.formula(
+  paste("LFSTATP ~", paste(predictors_4, collapse = " + "))
+)
+formula_5 <- as.formula(
+  paste("LFSTATP ~", paste(predictors_5, collapse = " + "))
+)
+
+full_model_1 <- glm(formula_1,
+             data = data_filtered_1, subset = train,
+             family = binomial)
+full_model_2 <- glm(formula_2,
+             data = data_filtered_2, subset = train,
+             family = binomial)
+full_model_3 <- glm(formula_3,
+             data = data_filtered_3, subset = train,
+             family = binomial)
+full_model_4 <- glm(formula_4,
+             data = data_filtered_4, subset = train,
+             family = binomial)
+full_model_5 <- glm(formula_5,
+             data = data_filtered_5, subset = train,
+             family = binomial)
+```
+
+```{r stepwise aic logistic regression}
+aic_step_model_1 <- step(full_model_1, direction = "both", trace = 0)
+# summary(aic_step_model_1)
+
+aic_step_model_2 <- step(full_model_2, direction = "both", trace = 0)
+# summary(aic_step_model_2)
+
+aic_step_model_3 <- step(full_model_3, direction = "both", trace = 0)
+# summary(aic_step_model_3)
+
+aic_step_model_4 <- step(full_model_4, direction = "both", trace = 0)
+# summary(aic_step_model_4)
+
+aic_step_model_5 <- step(full_model_5, direction = "both", trace = 0)
+# summary(aic_step_model_5)
+```
+
+# Check Assumptions for AIC Model
+
+```{r check assumptions for stepwise aic models}
+# Assumption 1: No severe multicollinearity
+# vif(aic_step_model_1)
+# vif(aic_step_model_2)
+# vif(aic_step_model_3)
+# vif(aic_step_model_4)
+# vif(aic_step_model_5)
+
+vif_results_aic_1 <- tryCatch({
+  car::vif(aic_step_model_1)
+}, error = function(e) {
+  # This code runs if an error occurs
+  return("VIF not calculated: Model contains fewer than 2 terms (or other error).")
+})
+print(vif_results_aic_1)
+
+vif_results_aic_2 <- tryCatch({
+  car::vif(aic_step_model_2)
+}, error = function(e) {
+  # This code runs if an error occurs
+  return("VIF not calculated: Model contains fewer than 2 terms (or other error).")
+})
+print(vif_results_aic_2)
+
+vif_results_aic_3 <- tryCatch({
+  car::vif(aic_step_model_3)
+}, error = function(e) {
+  # This code runs if an error occurs
+  return("VIF not calculated: Model contains fewer than 2 terms (or other error).")
+})
+print(vif_results_aic_3)
+
+vif_results_aic_4 <- tryCatch({
+  car::vif(aic_step_model_4)
+}, error = function(e) {
+  # This code runs if an error occurs
+  return("VIF not calculated: Model contains fewer than 2 terms (or other error).")
+})
+print(vif_results_aic_4)
+
+vif_results_aic_5 <- tryCatch({
+  car::vif(aic_step_model_5)
+}, error = function(e) {
+  # This code runs if an error occurs
+  return("VIF not calculated: Model contains fewer than 2 terms (or other error).")
+})
+print(vif_results_aic_5)
+
+# Assumption 2: Checking for influential points using Cook's Distance
+cooks_1 <- which(cooks.distance(aic_step_model_1) > 4/nrow(data_filtered_1[train,]))
+# cooks_1
+cooks_2 <- which(cooks.distance(aic_step_model_2) > 4/nrow(data_filtered_2[train,]))
+# cooks_2
+cooks_3 <- which(cooks.distance(aic_step_model_3) > 4/nrow(data_filtered_3[train,]))
+# cooks_3
+cooks_4 <- which(cooks.distance(aic_step_model_4) > 4/nrow(data_filtered_4[train,]))
+# cooks_4
+cooks_5 <- which(cooks.distance(aic_step_model_5) > 4/nrow(data_filtered_5[train,]))
+# cooks_5
+```
+
+```{r stepwise bic logistic regression}
+bic_step_model_1 <- step(full_model_1, k = log(nrow(data_filtered_1)), trace = 0)
+# summary(bic_step_model_1)
+
+bic_step_model_2 <- step(full_model_2, k = log(nrow(data_filtered_2)), trace = 0)
+# summary(bic_step_model_2)
+
+bic_step_model_3 <- step(full_model_3, k = log(nrow(data_filtered_3)), trace = 0)
+# summary(bic_step_model_3)
+
+bic_step_model_4 <- step(full_model_4, k = log(nrow(data_filtered_4)), trace = 0)
+# summary(bic_step_model_4)
+
+bic_step_model_5 <- step(full_model_5, k = log(nrow(data_filtered_5)), trace = 0)
+# summary(bic_step_model_5)
+```
+
+# Check Assumptions for BIC Model
+
+```{r check assumptions for stepwise bic models}
+# Assumption 1: No severe multicollinearity
+# vif(bic_step_model_1)
+# vif(bic_step_model_2)
+# vif(bic_step_model_3)
+# vif(bic_step_model_4)
+# vif(bic_step_model_5)
+
+vif_results_bic_1 <- tryCatch({
+  car::vif(bic_step_model_1)
+}, error = function(e) {
+  # This code runs if an error occurs
+  return("VIF not calculated: Model contains fewer than 2 terms (or other error).")
+})
+print(vif_results_bic_1)
+
+vif_results_bic_2 <- tryCatch({
+  car::vif(bic_step_model_2)
+}, error = function(e) {
+  # This code runs if an error occurs
+  return("VIF not calculated: Model contains fewer than 2 terms (or other error).")
+})
+print(vif_results_bic_2)
+
+vif_results_bic_3 <- tryCatch({
+  car::vif(bic_step_model_3)
+}, error = function(e) {
+  # This code runs if an error occurs
+  return("VIF not calculated: Model contains fewer than 2 terms (or other error).")
+})
+print(vif_results_bic_3)
+
+vif_results_bic_4 <- tryCatch({
+  car::vif(bic_step_model_4)
+}, error = function(e) {
+  # This code runs if an error occurs
+  return("VIF not calculated: Model contains fewer than 2 terms (or other error).")
+})
+print(vif_results_bic_4)
+
+vif_results_bic_5 <- tryCatch({
+  car::vif(bic_step_model_5)
+}, error = function(e) {
+  # This code runs if an error occurs
+  return("VIF not calculated: Model contains fewer than 2 terms (or other error).")
+})
+print(vif_results_bic_5)
+
+# Assumption 2: Checking for influential points using Cook's Distance
+cooks_1 <- which(cooks.distance(bic_step_model_1) > 4/nrow(data_filtered_1[train,]))
+# cooks_1
+cooks_2 <- which(cooks.distance(bic_step_model_2) > 4/nrow(data_filtered_2[train,]))
+# cooks_2
+cooks_3 <- which(cooks.distance(bic_step_model_3) > 4/nrow(data_filtered_3[train,]))
+# cooks_3
+cooks_4 <- which(cooks.distance(bic_step_model_4) > 4/nrow(data_filtered_4[train,]))
+# cooks_4
+cooks_5 <- which(cooks.distance(bic_step_model_5) > 4/nrow(data_filtered_5[train,]))
+# cooks_5
+```
+
+# Check for Common AIC Predictors
+
+Predictors that are common amongst all 5 imputated datasets are meaningful.
+
+```{r check common aic predictors}
+aic_vars_1 <- setdiff(names(coef(aic_step_model_1)), "(Intercept)")
+aic_vars_2 <- setdiff(names(coef(aic_step_model_2)), "(Intercept)")
+aic_vars_3 <- setdiff(names(coef(aic_step_model_3)), "(Intercept)")
+aic_vars_4 <- setdiff(names(coef(aic_step_model_4)), "(Intercept)")
+aic_vars_5 <- setdiff(names(coef(aic_step_model_5)), "(Intercept)")
+
+all_aic_vars <- c(aic_vars_1, aic_vars_2, aic_vars_3, aic_vars_4, aic_vars_5)
+aic_tab <- table(all_aic_vars)
+common_aic_vars <- names(aic_tab[aic_tab == 5])
+common_aic_vars
+```
+
+# Check for Common BIC Predictors
+
+Predictors that are common amongst all 5 imputated datasets are meaningful.
+
+```{r check common bic predictors}
+bic_vars_1 <- setdiff(names(coef(bic_step_model_1)), "(Intercept)")
+bic_vars_2 <- setdiff(names(coef(bic_step_model_2)), "(Intercept)")
+bic_vars_3 <- setdiff(names(coef(bic_step_model_3)), "(Intercept)")
+bic_vars_4 <- setdiff(names(coef(bic_step_model_4)), "(Intercept)")
+bic_vars_5 <- setdiff(names(coef(bic_step_model_5)), "(Intercept)")
+
+all_bic_vars <- c(bic_vars_1, bic_vars_2, bic_vars_3, bic_vars_4, bic_vars_5)
+bic_tab <- table(all_bic_vars)
+common_bic_vars <- names(bic_tab[bic_tab == 5])
+common_bic_vars
+common_bic_vars <- names(bic_tab[bic_tab == 4])
+common_bic_vars
+```
