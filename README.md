@@ -2,9 +2,12 @@
 Examining the Relationship Between Graduate Characteristics and Labour Market Outcomes Across Fields of Study
 
 ## Description
-This project explores the relationship between graduates characteristics from the 2020 National Graduates Survey (NGS) by Statistics Canada with employment outcomes. Methods used include Latent Class Analysis and logistic regression in R, and random forest in Python.
+This project explores the relationship between graduates characteristics from the 2020 National Graduates Survey (NGS) by Statistics Canada with employment outcomes. Methods used include Latent Class Analysis and logistic regression in R, and random forest in Python. 
+
+The LCA focuses on all bachelor's graduates, while the logistic regression and random forest focus on the three largest fields of study (Business, Health, Law and Social Sciences).
+
 ### Background
-### Modifications
+Given that employment is top of mind for many students, our aim is to examine what graduate characteristics, if any, are relevant and can help predict an undergraduate’s employability in Canada. Additionally, a key motivation is to address the less explored area of segmented analysis by field of study.
 
 ## Data
 Download the 202 NGS microdata file from statcan (https://www150.statcan.gc.ca/n1/pub/81m0011x/81m0011x2019001-eng.htm)
@@ -36,6 +39,17 @@ Either download the imputed data from the imputed_data folder, or run the R-code
 
 For the logistic regression files, ensure that you download the imputed datasets from the imputed_data folder and change the pathnames accordingly for the imp_data variables within the code.
 
+
+## LCA Analysis - Installation/Usage
+Install python
+### Packages
+```bash
+pip install pandas numpy
+pip install matplotlib seaborn
+pip install ipython jupyterlab notebook
+```
+### Execution
+Export the lca_data results from the LCA R code, as a csv. Read in this csv in the first code block of python notebook.
 
 ## Random Forest - Installation/Usage
 Install Python
