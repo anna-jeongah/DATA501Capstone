@@ -52,8 +52,9 @@ Export the lca_data results from the LCA R code, as a csv. Read in this csv in t
 ## Logistic Regression - Installation/Usage
 Install R
 
-###Packages
+### Packages
 
+```bash
 install.packages("dplyr") 
 install.packages("mice")
 install.packages("car") 
@@ -61,6 +62,7 @@ install.packages("pROC")
 install.packages("caret")
 install.packages("Metrics") 
 install.packages("survey") 
+```
 
 ### Execution
 Go through the code and change pathname for the ngs microdata csv file.
