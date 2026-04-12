@@ -169,6 +169,11 @@ data_reduced$LFCINDP <- data$LFCINDP # add back LFCINDP
 
 # Check Missing Data
 
+```{r}
+# To evaluate missingness patterns, ChatGPT was consulted to find the best way to observe them visually. Analysis of missingness patterns was done by me.
+# OpenAI. (2026). ChatGPT [Large language model]. https://chat.openai.com
+```
+
 ```{r check missing data}
 # check whether the response has any missing data
 sum(is.na(data_reduced$LFSTATP))
@@ -254,6 +259,14 @@ p5
 ```
 
 # Imputation
+
+```{r}
+# The idea of using MICE came from ChatGPT.
+# OpenAI. (2026). ChatGPT [Large language model]. https://chat.openai.com
+
+# Implementation of MICE came from the following
+# GeeksforGeeks. (2025, July 23). Mice package in R. https://www.geeksforgeeks.org/r-language/mice-package-in-r/
+```
 
 We will use Multiple Imputation with Chained Equations (MICE) to handle the missing data. The following code includes the code for MICE, however, it has been commented out to improve computational efficiency upon running this script.
 
@@ -345,6 +358,14 @@ p5 + p10
 From these plots, we can observe that the distribution before and after MICE is relatively similar.
 
 # LCA Indicator Selection
+
+```{r}
+# LCA indicator selection was inspired from the following
+# Sinha, P., Calfee, C. S., & Delucchi, K. L. (2021). Practitioner’s guide to latent class analysis: Methodological considerations and common pitfalls. Critical Care Medicine, 49(1), e63–e79. https://doi.org/10.1097/CCM.0000000000004710
+
+# Implementation of LCA came from the following
+# GeeksforGeeks. (2025, July 23). Latent class analysis in R. https://www.geeksforgeeks.org/r-machine-learning/latent-class-analysis-in-r/
+```
 
 With LCA, it is not the case that more indicators is better. Too many indicators will increase model complexity, reduce interpretability and cause convergence problems. Moreover, good LCA models should produce clear separation between classes. Thus, indicators that are composite of other indicators should be excluded.
 
@@ -449,6 +470,11 @@ length(lca_vars)
 ```
 
 # LCA
+
+```{r}
+# The logic for computing the entropy and pseudo likelihood test were derived from ChatGPT.
+# OpenAI. (2026). ChatGPT [Large language model]. https://chat.openai.com
+```
 
 ```{r lca analysis}
 # subset the data; only include variables we want to include in the LCA as defined previously
@@ -734,6 +760,3 @@ se_df
 ```{r}
 write.csv(se_df, 'prop_se/prop_se_FEATURE_NAME.csv', row.names = FALSE) #CHANGE FILE NAME BEFORE RUNNING IF YOU DON'T WANT TO OVERWRITE PREVIOUS FILE
 ```
-
-
-
